@@ -1,0 +1,22 @@
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+importers:
+
+  .:
+    devDependencies:
+      '@hitc/netsuite-types':
+        specifier: ^2024.2.1
+        version: 2024.2.6
+
+packages:
+
+  '@hitc/netsuite-types@2024.2.6':
+    resolution: {integrity: sha512-q0nZwpsvV41o9BHPHVEIlaGPLDIg/SufkyjanUWt5Y8TucZFDB+YEZTXNsvabyb27SH4FPeykNKVaGJHCHKGwA==}
+
+snapshots:
+
+  '@hitc/netsuite-types@2024.2.6': {}

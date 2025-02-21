@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "module": "amd",
+    "target": "es5",
+    "moduleResolution":"node",
+    "sourceMap": false,
+    "newLine": "LF",
+    "experimentalDecorators": true,
+    "baseUrl": ".",
+    "lib": ["esnext", "es2015.promise", "dom"],
+    "outDir": "./src/FileCabinet/SuiteScripts/motiv/generated",
+    "paths": {
+      "N": ["node_modules/@hitc/netsuite-types/N"],
+      "N/*": ["node_modules/@hitc/netsuite-types/N/*"]
+    }
+  },
+  "exclude": ["node_modules"]
+}

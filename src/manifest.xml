@@ -1,0 +1,4 @@
+<manifest projecttype="ACCOUNTCUSTOMIZATION">
+  <projectname>netsuite-bloom</projectname>
+  <frameworkversion>1.0</frameworkversion>
+</manifest>

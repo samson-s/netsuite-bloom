@@ -1,0 +1,8 @@
+{
+	"scripts": {
+    "deploy": "tsc && suitecloud project:deploy"
+  },
+	"devDependencies": {
+		"@hitc/netsuite-types": "^2024.2.1"
+	}
+}
