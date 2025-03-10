@@ -4,7 +4,7 @@
  */
 
 import { EntryPoints } from 'N/types';
-import { getTokens, simphonyGetGuestChecks, GuestCheck, createCashSale } from '../md_simphony';
+import { getTokens, simphonyGetGuestChecks, GuestCheck, createCashSale, getSymphonyLocRefs, getAllSymphonyLocRefs } from '../md_simphony';
 import * as runtime from 'N/runtime';
 import * as log from 'N/log';
 import * as format from 'N/format';
@@ -17,16 +17,25 @@ export const getInputData: EntryPoints.MapReduce.getInputData = async () => {
   if (dateParam) {
     date = format.parse({ value: dateParam, type: format.Type.DATE }) as Date;
   }
-  const locRef = runtime.getCurrentScript().getParameter({ name: 'custscript_md_mr_guest_checks_sync_loc' }) as string;
+  const locationIds = JSON.parse((runtime.getCurrentScript().getParameter({ name: 'custscript_md_mr_guest_checks_sync_loc' }) as string));
+  const locRefs = locationIds.length === 0 ? Object.values(await getAllSymphonyLocRefs()) : Object.values(await getSymphonyLocRefs(locationIds));
+  log.audit({ title: 'Starting Guest Checks Sync', details: `Date: ${date}, Locations: ${locRefs}` });
 
-  const result = await simphonyGetGuestChecks(tokens.idToken, date, locRef);
+  let guestChecks: GuestCheck[] = [];
 
-  // Pass main fields(e.g. locRef) to each guest check
-  for (let i = 0; i < result.guestChecks.length; i++) {
-    result.guestChecks[i].locRef = result.locRef
+  for (let i = 0; i < locRefs.length; i++) {
+    const locRef = locRefs[i];
+    const result = await simphonyGetGuestChecks(tokens.idToken, date, locRef);
+
+    // Add locRef to each guest check because it is not included in the response
+    for (let i = 0; i < result.guestChecks.length; i++) {
+      result.guestChecks[i].locRef = result.locRef
+    }
+
+    guestChecks = guestChecks.concat(result.guestChecks);
   }
 
-  return result.guestChecks;
+  return guestChecks;
 }
 
 export const map: EntryPoints.MapReduce.map = async (context) => {

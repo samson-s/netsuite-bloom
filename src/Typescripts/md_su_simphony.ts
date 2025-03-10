@@ -46,7 +46,7 @@ async function main(context: EntryPoints.Suitelet.onRequestContext) {
 
   const locationField = form.addField({
     id: 'location',
-    type: serverWidget.FieldType.SELECT,
+    type: serverWidget.FieldType.MULTISELECT,
     label: 'Location',
     source: 'location',
   })
@@ -74,14 +74,14 @@ async function main(context: EntryPoints.Suitelet.onRequestContext) {
         value: context.request.parameters.date,
         type: format.Type.DATE,
       }) as Date;
-      const location = context.request.parameters.inpt_location;
+      const locations = context.request.parameters.location.split('\u0005');
       const mrTask = task.create({
         taskType: task.TaskType.MAP_REDUCE,
         scriptId: 'customscript_md_mr_sim_guest_checks_sync',
       });
       mrTask.params = {
         custscript_md_mr_guest_checks_sync_date: date,
-        custscript_md_mr_guest_checks_sync_loc: location,
+        custscript_md_mr_guest_checks_sync_loc: locations,
       };
       mrTask.submit();
       dialog.confirm({

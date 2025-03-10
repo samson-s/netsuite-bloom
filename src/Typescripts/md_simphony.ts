@@ -500,3 +500,47 @@ export async function findOrCreateLocation(name: string): Promise<number | strin
 
   return await r.save.promise();
 }
+
+/**
+ * Get Symphony location references
+ * @param {Array} locationIds - Location ids
+ * @returns {Object} - Location references
+ */
+export async function getSymphonyLocRefs(locationIds: string[]): Promise<{ [key: string]: string }> {
+  const s = await search.create.promise({
+    type: record.Type.LOCATION,
+    filters: [
+      ['internalid', 'anyof', locationIds],
+    ],
+    columns: [
+      'name',
+    ],
+  });
+
+  const result = await s.run().getRange.promise({ start: 0, end: 1000 });
+  const locRefs: { [key: string]: string } = {};
+  for (let i = 0; i < result.length; i++) {
+    locRefs[result[i].id] = result[i].getValue('name') as string;
+  }
+  return locRefs;
+}
+
+/**
+ * Get all Symphony location references
+ * @returns {Object} - Location references
+ */
+export async function getAllSymphonyLocRefs(): Promise<{ [key: string]: string }> {
+  const s = await search.create.promise({
+    type: record.Type.LOCATION,
+    columns: [
+      'name',
+    ],
+  });
+
+  const result = await s.run().getRange.promise({ start: 0, end: 1000 });
+  const locRefs: { [key: string]: string } = {};
+  for (let i = 0; i < result.length; i++) {
+    locRefs[result[i].id] = result[i].getValue('name') as string;
+  }
+  return locRefs;
+}
