@@ -4,14 +4,31 @@
  */
 
 import { EntryPoints } from 'N/types';
-import { createOrUpdateNonInventoryItem, getTokens, simphonyGetMenuItems, MenuItem } from '../md_simphony';
+import { createOrUpdateNonInventoryItem, getTokens, simphonyGetMenuItems, MenuItem, getAllSymphonyLocRefs } from '../md_simphony';
 import * as log from 'N/log';
 
 export const getInputData: EntryPoints.MapReduce.getInputData = async () => {
   const tokens = await getTokens();
 
-  const result = await simphonyGetMenuItems(tokens.idToken);
-  return result.menuItems;
+  const locations = await getAllSymphonyLocRefs();
+
+  let menuItems: MenuItem[] = [];
+
+  for (const locRef of Object.values(locations)) {
+    try {
+      const result = await simphonyGetMenuItems(tokens.idToken, locRef);
+      result.menuItems.forEach((item) => {
+        item.locRef = result.locRef;
+      });
+      menuItems = menuItems.concat(result.menuItems);
+    } catch (e) {
+      log.error({ title: 'Error', details: `Error fetching menu items for location ${locRef}, proceeding to next location.` });
+    }
+  }
+
+  log.debug({ title: 'Menu Items', details: menuItems });
+
+  return menuItems;
 }
 
 export const map: EntryPoints.MapReduce.map = async (context) => {

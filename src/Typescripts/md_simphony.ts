@@ -9,7 +9,6 @@ import { USERNAME, PASSWORD, ORGNAME } from './constants';
 const URL = 'https://simphony-home.mta4.oraclerestaurants.com';
 const AUTH_URL = 'https://ors-idm.mta4.oraclerestaurants.com/oidc-provider/v1/oauth2';
 const CLIENT_ID = 'QkxNLjVhNDYyOWNhLWIxNjYtNDRhNy1iOTczLTM2NTFkMzE0MGJmZA'
-const LOC_REF = 'OB09';
 
 type Tokens = {
   idToken: string,
@@ -149,6 +148,7 @@ export type MenuItem = {
   majGrpName: string,
   famGrpNum: number,
   famGrpName: string,
+  locRef: string,
 }
 
 /**
@@ -156,11 +156,11 @@ export type MenuItem = {
  * @param {string} token - Token
  * @throws {Error} - Failed to get menu items
  */
-export async function simphonyGetMenuItems(token: string): Promise<MenuItemsResult> {
+export async function simphonyGetMenuItems(token: string, locRef: string): Promise<MenuItemsResult> {
   const url = `${URL}/bi/v1/${ORGNAME}/getMenuItemDimensions`;
   const body = {
     applicationName: 'netsuite',
-    locRef: LOC_REF,
+    locRef: locRef,
   }
   log.debug({ title: 'Get Menu Items', details: { url, body } });
 
@@ -247,8 +247,10 @@ export async function simphonyGetGuestChecks(token: string, date: Date, locRef: 
 
 export async function createOrUpdateNonInventoryItem(menuItem: MenuItem) {
   let item: record.Record;
+  // External id is composed of num and locRef so it is unique to each location
+  const externalId = menuItem.num + '_' + menuItem.locRef;
 
-  const rId = await findNonInventoryItemIdByExternalId(menuItem.num);
+  const rId = await findNonInventoryItemIdByExternalId(externalId);
   if (rId) {
     item = await record.load.promise({
       type: record.Type.NON_INVENTORY_ITEM,
@@ -264,13 +266,14 @@ export async function createOrUpdateNonInventoryItem(menuItem: MenuItem) {
   }
 
   const mappedFields = {
-    externalid: menuItem.num,
-    itemid: menuItem.num,
+    externalid: externalId,
+    itemid: externalId,
     displayname: menuItem.name,
     salesdescription: menuItem.name2,
     class: await getOrCreateClass(menuItem.majGrpName),
     cseg_md_ob_fg: await getOrCreateFamilyGroup(menuItem.famGrpName),
     salestaxcode: runtime.envType === runtime.EnvType.SANDBOX ? 5 : 5,
+    location: await findOrCreateLocation(menuItem.locRef),
   }
 
   for (const field in mappedFields) {
