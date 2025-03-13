@@ -25,14 +25,18 @@ export const getInputData: EntryPoints.MapReduce.getInputData = async () => {
 
   for (let i = 0; i < locRefs.length; i++) {
     const locRef = locRefs[i];
-    const result = await simphonyGetGuestChecks(tokens.idToken, date, locRef);
+    try {
+      const result = await simphonyGetGuestChecks(tokens.idToken, date, locRef);
 
-    // Add locRef to each guest check because it is not included in the response
-    for (let i = 0; i < result.guestChecks.length; i++) {
-      result.guestChecks[i].locRef = result.locRef
+      // Add locRef to each guest check because it is not included in the response
+      for (let i = 0; i < result.guestChecks.length; i++) {
+        result.guestChecks[i].locRef = result.locRef
+      }
+
+      guestChecks = guestChecks.concat(result.guestChecks);
+    } catch (_) {
+      log.error({ title: 'Error', details: `Error fetching guest checks for location ${locRef}, proceeding to next location.` });
     }
-
-    guestChecks = guestChecks.concat(result.guestChecks);
   }
 
   return guestChecks;
