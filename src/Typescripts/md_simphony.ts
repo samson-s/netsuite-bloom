@@ -247,8 +247,7 @@ export async function simphonyGetGuestChecks(token: string, date: Date, locRef: 
 
 export async function createOrUpdateNonInventoryItem(menuItem: MenuItem) {
   let item: record.Record;
-  // External id is composed of num and locRef so it is unique to each location
-  const externalId = menuItem.num + '_' + menuItem.locRef;
+  const externalId = menuItem.num;
 
   const rId = await findNonInventoryItemIdByExternalId(externalId);
   if (rId) {
