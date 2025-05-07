@@ -198,6 +198,7 @@ export type GuestCheck = {
       miNum: number,
     },
     discount: {
+      dscNum: number,
       dscMiNum: number,
     },
     serviceCharge: {
@@ -205,6 +206,8 @@ export type GuestCheck = {
     },
     dspQty: number,
     dspTtl: number,
+    aggTtl: number,
+    doNotShowFlag?: boolean,
     tenderMedia: {
       tmedNum: number,
     },
@@ -272,7 +275,7 @@ export async function createOrUpdateNonInventoryItem(menuItem: MenuItem) {
     class: await getOrCreateClass(menuItem.majGrpName),
     cseg_md_ob_fg: await getOrCreateFamilyGroup(menuItem.famGrpName),
     salestaxcode: runtime.envType === runtime.EnvType.SANDBOX ? 5 : 5,
-    location: await findOrCreateLocation(menuItem.locRef),
+    // location: await findOrCreateLocation(menuItem.locRef),
   }
 
   for (const field in mappedFields) {
@@ -320,6 +323,10 @@ export async function createCashSale(guestCheck: GuestCheck) {
   for (let i = 0; i < guestCheck.detailLines.length; i++) {
     const detailLine = guestCheck.detailLines[i];
 
+    if (detailLine.discount && detailLine.doNotShowFlag === true) {
+      continue;
+    }
+
     let item: number | string | null = null;
     if (detailLine.menuItem) {
       item = await findNonInventoryItemIdByExternalId(detailLine.menuItem.miNum);
@@ -327,10 +334,16 @@ export async function createCashSale(guestCheck: GuestCheck) {
         throw new Error(`Menu item not found: ${detailLine.menuItem.miNum}. Aborting cash sale creation with external id: ${guestCheck.guestCheckId}.`);
       }
     } else if (detailLine.discount) {
+      // if (detailLine.dspTtl === detailLine.aggTtl) {
+      //   continue; // Skip discount line if it's the same as the total. Check https://motiv-digital.atlassian.net/browse/NIP-893 for more info.
+      // }
+
       item = await findNonInventoryItemIdByExternalId(detailLine.discount.dscMiNum);
       if (item === null) {
         throw new Error(`Discount not found: ${detailLine.discount.dscMiNum}. Aborting cash sale creation with external id: ${guestCheck.guestCheckId}.`);
       }
+      const discountItem = await findDiscountItemIdByExternalId(detailLine.discount.dscNum);
+      r.setCurrentSublistValue({ sublistId: 'item', fieldId: 'custcol_md_cs_disc', value: discountItem });
     } else if (detailLine.serviceCharge) {
       item = 29;
     } else if (detailLine.tenderMedia) {
@@ -342,15 +355,17 @@ export async function createCashSale(guestCheck: GuestCheck) {
 
     r.selectNewLine({ sublistId: 'item' });
     r.setCurrentSublistValue({ sublistId: 'item', fieldId: 'item', value: item });
-    r.setCurrentSublistValue({ sublistId: 'item', fieldId: 'quantity', value: detailLine.dspQty });
+
+    const quantity = detailLine.serviceCharge ? 1 : detailLine.dspQty;
+    r.setCurrentSublistValue({ sublistId: 'item', fieldId: 'quantity', value: quantity });
+
     let rate = "0";
-    if (detailLine.dspQty == 0) {
+    if (quantity == 0) {
       rate = "0";
     } else {
-      rate = (detailLine.dspTtl / detailLine.dspQty).toFixed(2);
+      rate = (detailLine.dspTtl / quantity).toFixed(2);
     }
     r.setCurrentSublistValue({ sublistId: 'item', fieldId: 'rate', value: rate });
-    r.setCurrentSublistValue({ sublistId: 'item', fieldId: 'amount', value: detailLine.dspTtl });
     r.commitLine({ sublistId: 'item' });
   }
 
@@ -372,6 +387,24 @@ export async function createCashSale(guestCheck: GuestCheck) {
 export async function findNonInventoryItemIdByExternalId(externalId: string | number): Promise<string | null> {
   const s = await search.create.promise({
     type: record.Type.NON_INVENTORY_ITEM,
+    filters: [
+      ['externalid', 'is', externalId],
+    ],
+    columns: [
+      'internalid',
+    ],
+  });
+
+  const result = await s.run().getRange.promise({ start: 0, end: 1 });
+  if (result.length) {
+    return result[0].getValue('internalid') as string;
+  }
+  return null;
+}
+
+export async function findDiscountItemIdByExternalId(externalId: string | number): Promise<string | null> {
+  const s = await search.create.promise({
+    type: record.Type.DISCOUNT_ITEM,
     filters: [
       ['externalid', 'is', externalId],
     ],
@@ -545,4 +578,87 @@ export async function getAllSymphonyLocRefs(): Promise<{ [key: string]: string }
     locRefs[result[i].id] = result[i].getValue('name') as string;
   }
   return locRefs;
+}
+
+type DiscountDimensionsResult = {
+  locRef: string,
+  discounts: Discount[],
+}
+
+export type Discount = {
+  locRef: string,
+  num: number,
+  name: string,
+  posPercent: number,
+}
+
+/**
+ * Get discount dimensions from Simphony
+ * @param {string} token - Token
+ * @throws {Error} - Failed to get discount dimensions
+ * @returns {Object} - Discount dimensions
+ */
+export async function simphonyGetDiscountDimensions(token: string, locRef: string): Promise<DiscountDimensionsResult> {
+  const url = `${URL}/bi/v1/${ORGNAME}/getDiscountDimensions`;
+  const body = {
+    applicationName: 'netsuite',
+    locRef: locRef,
+  }
+  log.debug({ title: 'Get Discount Dimensions', details: { url, body } });
+
+  const response = await https.post.promise({
+    url: url,
+    headers: {
+      "Authorization": `Bearer ${token}`,
+      "Content-Type": 'application/json',
+      "Accept": 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (response.code !== 200) {
+    log.error('Failed to get discount dimensions', response);
+    log.error('Failed to get discount dimensions', response.body);
+    throw new Error('Failed to get discount dimensions');
+  }
+
+  return JSON.parse(response.body);
+}
+
+/**
+ * Create or update a NetSuite discount non inventory item
+ * @param {Object} discountDimension - Discount Dimension
+ * @throws {Error} - Failed to create item
+ */
+export async function createOrUpdateDiscountItem(discountDimension: Discount) {
+  let item: record.Record;
+  const externalId = discountDimension.num;
+
+  const rId = await findDiscountItemIdByExternalId(externalId);
+  if (rId) {
+    item = await record.load.promise({
+      type: record.Type.DISCOUNT_ITEM,
+      id: rId,
+      isDynamic: true,
+    });
+  } else {
+    log.debug({ title: 'Creating Discount Item', details: discountDimension });
+    item = await record.create.promise({
+      type: record.Type.DISCOUNT_ITEM,
+      isDynamic: true,
+    });
+  }
+
+  item.setValue({ fieldId: 'externalid', value: externalId });
+  item.setValue({ fieldId: 'itemid', value: discountDimension.name });
+  item.setValue({ fieldId: 'displayname', value: discountDimension.name });
+  item.setText({ fieldId: 'rate', text: discountDimension.posPercent + '%' });
+  item.setValue({ fieldId: 'nonposting', value: 'T' });
+
+  try {
+    const id = await item.save.promise();
+    log.debug({ title: 'Discount Item Created', details: id });
+  } catch (error) {
+    log.error({ title: 'Failed to create item', details: error });
+  }
 }

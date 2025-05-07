@@ -37,6 +37,10 @@ async function main(context: EntryPoints.Suitelet.onRequestContext) {
     value: 'guestchecks',
     text: 'Guest Checks',
   });
+  field.addSelectOption({
+    value: 'discountdimensions',
+    text: 'Discount Dimensions',
+  });
 
   form.addField({
     id: 'date',
@@ -87,6 +91,16 @@ async function main(context: EntryPoints.Suitelet.onRequestContext) {
       dialog.confirm({
         title: 'Success',
         message: 'Guest Checks Sync Task Submitted',
+      });
+    } else if (target === 'discountdimensions') {
+      const mrTask = task.create({
+        taskType: task.TaskType.MAP_REDUCE,
+        scriptId: 'customscript_md_mr_sim_discount_dims',
+      });
+      mrTask.submit();
+      dialog.confirm({
+        title: 'Success',
+        message: 'Discount Dimensions Sync Task Submitted',
       });
     }
   }
