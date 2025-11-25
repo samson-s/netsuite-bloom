@@ -1,4 +1,4 @@
-export const USERNAME = 'NETSUITE4';
-export const PASSWORD = 'Netsuite12345!';
+export const USERNAME = 'NETSUITE7';
+export const PASSWORD = 'Netsuite12821!';
 export const ORGNAME = 'BLM';
 

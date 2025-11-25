@@ -8,7 +8,7 @@ import { USERNAME, PASSWORD, ORGNAME } from './constants';
 
 const URL = 'https://simphony-home.mta4.oraclerestaurants.com';
 const AUTH_URL = 'https://ors-idm.mta4.oraclerestaurants.com/oidc-provider/v1/oauth2';
-const CLIENT_ID = 'QkxNLjVhNDYyOWNhLWIxNjYtNDRhNy1iOTczLTM2NTFkMzE0MGJmZA'
+const CLIENT_ID = 'QkxNLjUxNjU2MTBmLTI4MjgtNDcyYy1hMzJkLTdjMGIwYWJiMDA5YQ'
 
 type Tokens = {
   idToken: string,
@@ -329,7 +329,9 @@ export async function createCashSale(guestCheck: GuestCheck) {
 
     let item: number | string | null = null;
     if (detailLine.menuItem) {
-      item = await findNonInventoryItemIdByExternalId(detailLine.menuItem.miNum);
+      item = await findNonInventoryItemIdByExternalId(detailLine.menuItem.miNum)
+        ?? await findKitItemIdByExternalId(detailLine.menuItem.miNum)
+        ?? await findInventoryItemIdByExternalId(detailLine.menuItem.miNum);
       if (item === null) {
         throw new Error(`Menu item not found: ${detailLine.menuItem.miNum}. Aborting cash sale creation with external id: ${guestCheck.guestCheckId}.`);
       }
@@ -338,7 +340,9 @@ export async function createCashSale(guestCheck: GuestCheck) {
       //   continue; // Skip discount line if it's the same as the total. Check https://motiv-digital.atlassian.net/browse/NIP-893 for more info.
       // }
 
-      item = await findNonInventoryItemIdByExternalId(detailLine.discount.dscMiNum);
+      item = await findNonInventoryItemIdByExternalId(detailLine.discount.dscMiNum)
+        ?? await findKitItemIdByExternalId(detailLine.discount.dscMiNum)
+        ?? await findInventoryItemIdByExternalId(detailLine.discount.dscMiNum);
       if (item === null) {
         throw new Error(`Discount not found: ${detailLine.discount.dscMiNum}. Aborting cash sale creation with external id: ${guestCheck.guestCheckId}.`);
       }
@@ -356,7 +360,8 @@ export async function createCashSale(guestCheck: GuestCheck) {
     r.selectNewLine({ sublistId: 'item' });
     r.setCurrentSublistValue({ sublistId: 'item', fieldId: 'item', value: item });
 
-    const quantity = detailLine.serviceCharge ? 1 : detailLine.dspQty;
+    const dspQty = detailLine.dspQty == 0 ? (detailLine.dspTtl > 0 ? 1 : 0) : detailLine.dspQty;
+    const quantity = detailLine.serviceCharge ? 1 : dspQty;
     r.setCurrentSublistValue({ sublistId: 'item', fieldId: 'quantity', value: quantity });
 
     let rate = "0";
@@ -387,6 +392,50 @@ export async function createCashSale(guestCheck: GuestCheck) {
 export async function findNonInventoryItemIdByExternalId(externalId: string | number): Promise<string | null> {
   const s = await search.create.promise({
     type: record.Type.NON_INVENTORY_ITEM,
+    filters: [
+      ['externalid', 'is', externalId],
+    ],
+    columns: [
+      'internalid',
+    ],
+  });
+
+  const result = await s.run().getRange.promise({ start: 0, end: 1 });
+  if (result.length) {
+    return result[0].getValue('internalid') as string;
+  }
+  return null;
+}
+
+/**
+ * Find kit item by external id
+ * @param {string} externalId - External id
+ */
+export async function findKitItemIdByExternalId(externalId: string | number): Promise<string | null> {
+  const s = await search.create.promise({
+    type: record.Type.KIT_ITEM,
+    filters: [
+      ['externalid', 'is', externalId],
+    ],
+    columns: [
+      'internalid',
+    ],
+  });
+
+  const result = await s.run().getRange.promise({ start: 0, end: 1 });
+  if (result.length) {
+    return result[0].getValue('internalid') as string;
+  }
+  return null;
+}
+
+/**
+ * Find Inventory Item by external id
+ * @param {string} externalId - External id
+ */
+export async function findInventoryItemIdByExternalId(externalId: string | number): Promise<string | null> {
+  const s = await search.create.promise({
+    type: record.Type.INVENTORY_ITEM,
     filters: [
       ['externalid', 'is', externalId],
     ],
