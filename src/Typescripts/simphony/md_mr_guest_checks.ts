@@ -15,6 +15,7 @@ export const getInputData: EntryPoints.MapReduce.getInputData = async () => {
 
   const dateParam = runtime.getCurrentScript().getParameter({ name: 'custscript_md_mr_guest_checks_sync_date' });
   let date = new Date();
+  date.setDate(date.getDate() - 1); // Set to yesterday
   if (dateParam) {
     date = format.parse({ value: dateParam, type: format.Type.DATE }) as Date;
   }
