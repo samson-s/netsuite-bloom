@@ -3,7 +3,9 @@
         <path>~/AccountConfiguration/*</path>
     </configuration>
     <files>
-        <path>~/FileCabinet/*</path>
+        <!-- <path>~/FileCabinet/*</path> -->
+        <path>~/FileCabinet/SuiteScripts/motiv/generated/md_simphony.js</path>
+        <path>~/FileCabinet/SuiteScripts/motiv/generated/simphony/md_mr_menu_items.js</path>
     </files>
     <objects>
         <path>~/Objects/*</path>

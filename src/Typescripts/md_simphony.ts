@@ -289,6 +289,78 @@ export async function createOrUpdateNonInventoryItem(menuItem: MenuItem) {
   }
 }
 
+export async function createOrUpdateKitItem(menuItem: MenuItem) {
+  let item: record.Record;
+  const externalId = menuItem.num;
+
+  const rId = await findKitItemIdByExternalId(externalId);
+  if (rId) {
+    item = await record.load.promise({
+      type: record.Type.KIT_ITEM,
+      id: rId,
+      isDynamic: true,
+    });
+  }
+  else {
+    log.debug({ title: 'Creating Kit Item', details: menuItem });
+    item = await record.create.promise({
+      type: record.Type.KIT_ITEM,
+      isDynamic: true,
+    });
+
+  }
+
+  const mappedFields = {
+    externalid: externalId,
+    itemid: externalId,
+    displayname: menuItem.name,
+    // salesdescription: menuItem.name2,
+    class: await getOrCreateClass(menuItem.majGrpName),
+    cseg_md_ob_fg: await getOrCreateFamilyGroup(menuItem.famGrpName),
+    salestaxcode: runtime.envType === runtime.EnvType.SANDBOX ? 5 : 5,
+    incomeaccount: 54,
+  };
+  for (const field in mappedFields) {
+    item.setValue({ fieldId: field, value: mappedFields[field] });
+  }
+
+  if (item.getLineCount({ sublistId: 'member' }) <= 0) {
+    item.selectNewLine({ sublistId: 'member' });
+    item.setCurrentSublistValue({ sublistId: 'member', fieldId: 'item', value: 3279077 });
+    item.setCurrentSublistValue({ sublistId: 'member', fieldId: 'quantity', value: 1 });
+    item.commitLine({ sublistId: 'member' });
+  }
+
+  try {
+    const result = await item.save.promise();
+    log.debug({ title: 'Kit Item Created/Updated', details: result });
+  }
+  catch (error) {
+    log.error({ title: 'Failed to create kit item', details: error });
+  }
+}
+
+async function getKitComponents(menuItem: MenuItem) {
+  const s = await search.create.promise({
+    type: record.Type.INVENTORY_ITEM,
+    filters: [
+      ['externalid', 'is', menuItem.num],
+    ],
+    columns: [
+      "internalid",
+    ],
+  });
+
+  const result = await s.run().getRange.promise({ start: 0, end: 1000 });
+  const components: { id: string }[] = [];
+  for (let i = 0; i < result.length; i++) {
+    components.push({
+      id: result[i].getValue({ name: 'internalid' }) as string,
+    });
+  }
+  return components;
+}
+
 /**
  * Create Cash Sale if it doesn't exist by checking external id
  * @param {Object} guestCheck - Guest Check

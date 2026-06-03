@@ -4,7 +4,7 @@
  */
 
 import { EntryPoints } from 'N/types';
-import { createOrUpdateNonInventoryItem, getTokens, simphonyGetMenuItems, MenuItem, getAllSymphonyLocRefs } from '../md_simphony';
+import { createOrUpdateNonInventoryItem, getTokens, simphonyGetMenuItems, MenuItem, getAllSymphonyLocRefs, createOrUpdateKitItem } from '../md_simphony';
 import * as log from 'N/log';
 
 export const getInputData: EntryPoints.MapReduce.getInputData = async () => {
@@ -34,7 +34,8 @@ export const getInputData: EntryPoints.MapReduce.getInputData = async () => {
 export const map: EntryPoints.MapReduce.map = async (context) => {
   const item: MenuItem = JSON.parse(context.value);
 
-  await createOrUpdateNonInventoryItem(item);
+  // await createOrUpdateNonInventoryItem(item);
+  await createOrUpdateKitItem(item);
 }
 
 export const summarize: EntryPoints.MapReduce.summarize = (summary) => {
