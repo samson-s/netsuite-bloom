@@ -162,7 +162,6 @@ export async function simphonyGetMenuItems(token: string, locRef: string): Promi
     applicationName: 'netsuite',
     locRef: locRef,
   }
-  log.debug({ title: 'Get Menu Items', details: { url, body } });
 
   const response = await https.post.promise({
     url: url,
@@ -278,9 +277,13 @@ export async function createOrUpdateNonInventoryItem(menuItem: MenuItem) {
     // location: await findOrCreateLocation(menuItem.locRef),
   }
 
-  for (const field in mappedFields) {
-    item.setValue({ fieldId: field, value: mappedFields[field] });
-  }
+  item.setValue({ fieldId: 'externalid', value: mappedFields.externalid });
+  item.setValue({ fieldId: 'itemid', value: mappedFields.itemid });
+  item.setValue({ fieldId: 'displayname', value: mappedFields.displayname });
+  item.setValue({ fieldId: 'salesdescription', value: mappedFields.salesdescription });
+  item.setValue({ fieldId: 'class', value: mappedFields.class });
+  item.setValue({ fieldId: 'cseg_md_ob_fg', value: mappedFields.cseg_md_ob_fg });
+  item.setValue({ fieldId: 'salestaxcode', value: mappedFields.salestaxcode });
 
   try {
     await item.save.promise();
@@ -302,27 +305,25 @@ export async function createOrUpdateKitItem(menuItem: MenuItem) {
     });
   }
   else {
-    log.debug({ title: 'Creating Kit Item', details: menuItem });
     item = await record.create.promise({
       type: record.Type.KIT_ITEM,
       isDynamic: true,
     });
-
+    log.audit({ title: 'Creating Kit Item', details: menuItem });
   }
 
-  const mappedFields = {
-    externalid: externalId,
-    itemid: externalId,
-    displayname: menuItem.name,
-    // salesdescription: menuItem.name2,
-    class: await getOrCreateClass(menuItem.majGrpName),
-    cseg_md_ob_fg: await getOrCreateFamilyGroup(menuItem.famGrpName),
-    salestaxcode: runtime.envType === runtime.EnvType.SANDBOX ? 5 : 5,
-    incomeaccount: 54,
-  };
-  for (const field in mappedFields) {
-    item.setValue({ fieldId: field, value: mappedFields[field] });
+  try {
+    item.setValue({ fieldId: 'externalid', value: externalId });
+    item.setValue({ fieldId: 'itemid', value: externalId });
+    item.setValue({ fieldId: 'displayname', value: menuItem.name });
+    item.setValue({ fieldId: 'class', value: await getOrCreateClass(menuItem.majGrpName) });
+    item.setValue({ fieldId: 'cseg_md_ob_fg', value: await getOrCreateFamilyGroup(menuItem.famGrpName) });
+    item.setValue({ fieldId: 'salestaxcode', value: runtime.envType === runtime.EnvType.SANDBOX ? 5 : 5 });
+    item.setValue({ fieldId: 'incomeaccount', value: 54, ignoreFieldChange: true });
+  } catch (error) {
+    log.error({ title: 'Failed to set kit item fields', details: error });
   }
+
 
   if (item.getLineCount({ sublistId: 'member' }) <= 0) {
     item.selectNewLine({ sublistId: 'member' });
@@ -330,35 +331,15 @@ export async function createOrUpdateKitItem(menuItem: MenuItem) {
     item.setCurrentSublistValue({ sublistId: 'member', fieldId: 'quantity', value: 1 });
     item.commitLine({ sublistId: 'member' });
   }
+  log.debug({ title: 'Kit Item after setting members', details: { lineCount: item.getLineCount({ sublistId: 'member' }) } });
 
   try {
     const result = await item.save.promise();
-    log.debug({ title: 'Kit Item Created/Updated', details: result });
+    log.audit({ title: 'Kit Item Created/Updated', details: result });
   }
   catch (error) {
     log.error({ title: 'Failed to create kit item', details: error });
   }
-}
-
-async function getKitComponents(menuItem: MenuItem) {
-  const s = await search.create.promise({
-    type: record.Type.INVENTORY_ITEM,
-    filters: [
-      ['externalid', 'is', menuItem.num],
-    ],
-    columns: [
-      "internalid",
-    ],
-  });
-
-  const result = await s.run().getRange.promise({ start: 0, end: 1000 });
-  const components: { id: string }[] = [];
-  for (let i = 0; i < result.length; i++) {
-    components.push({
-      id: result[i].getValue({ name: 'internalid' }) as string,
-    });
-  }
-  return components;
 }
 
 /**
@@ -389,7 +370,7 @@ export async function createCashSale(guestCheck: GuestCheck) {
   r.setValue({ fieldId: 'entity', value: 9 });
   r.setValue({ fieldId: 'memo', value: guestCheck.chkNum });
 
-  const locationId = await findOrCreateLocation(guestCheck.locRef);
+  const locationId = await findOrCreateLocation(guestCheck.locRef as string);
   r.setValue({ fieldId: 'location', value: locationId });
 
   for (let i = 0; i < guestCheck.detailLines.length; i++) {
