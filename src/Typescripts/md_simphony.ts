@@ -310,6 +310,7 @@ export async function createOrUpdateKitItem(menuItem: MenuItem) {
       isDynamic: true,
     });
     log.audit({ title: 'Creating Kit Item', details: menuItem });
+    item.setValue({ fieldId: 'incomeaccount', value: 54, ignoreFieldChange: true });
   }
 
   try {
@@ -319,7 +320,6 @@ export async function createOrUpdateKitItem(menuItem: MenuItem) {
     item.setValue({ fieldId: 'class', value: await getOrCreateClass(menuItem.majGrpName) });
     item.setValue({ fieldId: 'cseg_md_ob_fg', value: await getOrCreateFamilyGroup(menuItem.famGrpName) });
     item.setValue({ fieldId: 'salestaxcode', value: runtime.envType === runtime.EnvType.SANDBOX ? 5 : 5 });
-    item.setValue({ fieldId: 'incomeaccount', value: 54, ignoreFieldChange: true });
   } catch (error) {
     log.error({ title: 'Failed to set kit item fields', details: error });
   }
@@ -749,13 +749,13 @@ export async function createOrUpdateDiscountItem(discountDimension: Discount) {
       type: record.Type.DISCOUNT_ITEM,
       isDynamic: true,
     });
+    item.setValue({ fieldId: 'nonposting', value: 'T' });
   }
 
   item.setValue({ fieldId: 'externalid', value: externalId });
   item.setValue({ fieldId: 'itemid', value: discountDimension.name });
   item.setValue({ fieldId: 'displayname', value: discountDimension.name });
   item.setText({ fieldId: 'rate', text: discountDimension.posPercent + '%' });
-  item.setValue({ fieldId: 'nonposting', value: 'T' });
 
   try {
     const id = await item.save.promise();
