@@ -15,7 +15,7 @@ export const getInputData: EntryPoints.MapReduce.getInputData = async () => {
 
   const dateParam = runtime.getCurrentScript().getParameter({ name: 'custscript_md_mr_guest_checks_sync_date' });
   let date = new Date();
-  date.setDate(date.getDate() - 1); // Set to yesterday
+  // date.setDate(date.getDate() - 1); // Set to yesterday
   if (dateParam) {
     date = format.parse({ value: dateParam, type: format.Type.DATE }) as Date;
   }
@@ -44,26 +44,30 @@ export const getInputData: EntryPoints.MapReduce.getInputData = async () => {
   return guestChecks;
 }
 
-export const map: EntryPoints.MapReduce.map = async (context) => {
-  const guestCheck: GuestCheck = JSON.parse(context.value);
+// Each guest check is handled in reduce rather than map: reduce gets 5000 usage units
+// per invocation instead of 1000, and a check with many detail lines exhausts the map
+// budget on the per-line item lookups in createCashSale.
+export const reduce: EntryPoints.MapReduce.reduce = async (context) => {
+  for (let i = 0; i < context.values.length; i++) {
+    const guestCheck: GuestCheck = JSON.parse(context.values[i]);
 
-  if (guestCheck.chkNum == 11362305) {
-    // save the guestCheck to a file for debugging
-    const fileObj = file.create({
-      name: `guestCheck_${guestCheck.chkNum}.json`,
-      fileType: file.Type.JSON,
-      contents: JSON.stringify(guestCheck),
-      folder: 9, // replace with your folder id
-    });
+    if (guestCheck.chkNum == 11362305) {
+      // save the guestCheck to a file for debugging
+      const fileObj = file.create({
+        name: `guestCheck_${guestCheck.chkNum}.json`,
+        fileType: file.Type.JSON,
+        contents: JSON.stringify(guestCheck),
+        folder: 9, // replace with your folder id
+      });
 
-    fileObj.save();
-  }
+      fileObj.save();
+    }
 
-
-  try {
-    await createCashSale(guestCheck);
-  } catch (e) {
-    log.error({ title: 'Error', details: e });
+    try {
+      await createCashSale(guestCheck);
+    } catch (e) {
+      log.error({ title: 'Error', details: e });
+    }
   }
 }
 
