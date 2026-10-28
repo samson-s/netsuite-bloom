@@ -311,14 +311,14 @@ export async function createOrUpdateKitItem(menuItem: MenuItem) {
     });
     log.audit({ title: 'Creating Kit Item', details: menuItem });
     item.setValue({ fieldId: 'incomeaccount', value: 54, ignoreFieldChange: true });
+    item.setValue({ fieldId: 'class', value: await getOrCreateClass(menuItem.majGrpName) });
+    item.setValue({ fieldId: 'cseg_md_ob_fg', value: await getOrCreateFamilyGroup(menuItem.famGrpName) });
   }
 
   try {
     item.setValue({ fieldId: 'externalid', value: externalId });
     item.setValue({ fieldId: 'itemid', value: externalId });
     item.setValue({ fieldId: 'displayname', value: menuItem.name });
-    item.setValue({ fieldId: 'class', value: await getOrCreateClass(menuItem.majGrpName) });
-    item.setValue({ fieldId: 'cseg_md_ob_fg', value: await getOrCreateFamilyGroup(menuItem.famGrpName) });
     item.setValue({ fieldId: 'salestaxcode', value: runtime.envType === runtime.EnvType.SANDBOX ? 5 : 5 });
   } catch (error) {
     log.error({ title: 'Failed to set kit item fields', details: error });
@@ -393,16 +393,18 @@ export async function createCashSale(guestCheck: GuestCheck) {
       //   continue; // Skip discount line if it's the same as the total. Check https://motiv-digital.atlassian.net/browse/NIP-893 for more info.
       // }
 
-      item = await findNonInventoryItemIdByExternalId(detailLine.discount.dscMiNum)
-        ?? await findKitItemIdByExternalId(detailLine.discount.dscMiNum)
-        ?? await findInventoryItemIdByExternalId(detailLine.discount.dscMiNum);
+      // item = await findNonInventoryItemIdByExternalId(detailLine.discount.dscMiNum)
+      //   ?? await findKitItemIdByExternalId(detailLine.discount.dscMiNum)
+      //   ?? await findInventoryItemIdByExternalId(detailLine.discount.dscMiNum);
+      item = await findDiscountItemIdByExternalId(detailLine.discount.dscNum);
       if (item === null) {
         throw new Error(`Discount not found: ${detailLine.discount.dscMiNum}. Aborting cash sale creation with external id: ${guestCheck.guestCheckId}.`);
       }
       const discountItem = await findDiscountItemIdByExternalId(detailLine.discount.dscNum);
+      r.setCurrentSublistValue({ sublistId: 'item', fieldId: 'pricelevel', value: -1 }); // Set price level to custom
       r.setCurrentSublistValue({ sublistId: 'item', fieldId: 'custcol_md_cs_disc', value: discountItem });
     } else if (detailLine.serviceCharge) {
-      item = 29;
+      item = 3291489;
     } else if (detailLine.tenderMedia) {
     }
 
@@ -413,17 +415,22 @@ export async function createCashSale(guestCheck: GuestCheck) {
     r.selectNewLine({ sublistId: 'item' });
     r.setCurrentSublistValue({ sublistId: 'item', fieldId: 'item', value: item });
 
-    const dspQty = detailLine.dspQty == 0 ? (detailLine.dspTtl > 0 ? 1 : 0) : detailLine.dspQty;
-    const quantity = detailLine.serviceCharge ? 1 : dspQty;
-    r.setCurrentSublistValue({ sublistId: 'item', fieldId: 'quantity', value: quantity });
-
-    let rate = "0";
-    if (quantity == 0) {
-      rate = "0";
+    if (detailLine.discount) {
+      r.setCurrentSublistValue({ sublistId: 'item', fieldId: 'rate', value: detailLine.dspTtl });
+      r.setCurrentSublistValue({ sublistId: 'item', fieldId: 'amount', value: detailLine.dspTtl });
     } else {
-      rate = (detailLine.dspTtl / quantity).toFixed(2);
+      const dspQty = detailLine.dspQty == 0 ? (detailLine.dspTtl > 0 ? 1 : 0) : detailLine.dspQty;
+      const quantity = detailLine.serviceCharge ? 1 : dspQty;
+      r.setCurrentSublistValue({ sublistId: 'item', fieldId: 'quantity', value: quantity });
+
+      let rate = "0";
+      if (quantity == 0) {
+        rate = "0";
+      } else {
+        rate = (detailLine.dspTtl / quantity).toFixed(2);
+      }
+      r.setCurrentSublistValue({ sublistId: 'item', fieldId: 'rate', value: rate });
     }
-    r.setCurrentSublistValue({ sublistId: 'item', fieldId: 'rate', value: rate });
     r.commitLine({ sublistId: 'item' });
   }
 
